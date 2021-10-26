@@ -1,0 +1,4 @@
+# dockerfile for building custom image
+FROM nginx:latest
+LABEL Name=custom_nginx Version=0.1
+COPY ./html/index.html /usr/share/nginx/html/index.html

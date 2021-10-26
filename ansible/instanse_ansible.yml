@@ -1,0 +1,107 @@
+- name: integration of terraform and ansible
+  hosts: all
+  become: true
+  become_method: sudo
+  
+
+  tasks:
+    - name: Update and upgrade apt packages
+      apt:
+          update_cache: yes
+          upgrade: yes
+    - name: Install packages for apt add repository over HTTPS
+      become: yes
+      apt:
+        name: "{{ packagesdep }}"
+        force_apt_get: yes
+        state: latest
+        update_cache: yes
+      vars:
+        packagesdep:
+        - git
+        - apt-transport-https
+        - ca-certificates
+        - wget
+        - software-properties-common
+        - gnupg2
+        - curl
+        - python-docker
+    - name: Add Apt signing key from official docker repo
+      apt_key:
+        url: https://download.docker.com/linux/debian/gpg
+        state: present
+    - name: add docker official repository for Debian Stretch
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/debian stretch stable
+        state: present
+    - name: Index new repo into the cache
+      become: yes
+      apt:
+        name: "*"
+        state: latest
+        update_cache: yes
+        force_apt_get: yes
+    - name: actually install docker
+      apt:
+        name: "docker-ce"
+        state: latest
+    - name: adding existing user '{{ user }}' to group sudo
+      user:
+        name: admin
+        groups: docker
+        append: yes
+    # - name: copy custom image nginx
+    #   copy:
+    #     src: ./custom_nginx
+    #     dest: /home/admin/custom_nginx.tar
+    #     owner: admin
+    #     group: admin
+    #     mode: '0644'
+    - name: copy dockerfile "dockerfile_build"
+      copy:
+        src: ./dockerfile_build
+        dest: /home/admin/Dockerfile
+        owner: admin
+        group: admin
+        mode: '0644'
+    - name: making folder html
+      file:
+         path: /home/admin/html
+         state: directory
+         owner: admin
+         group: admin
+         mode: '0645'
+    - name: copy custom index.html
+      copy:
+        src: ./index.html
+        dest: /home/admin/html/index.html
+        owner: admin
+        group: admin
+        mode: '0644'
+    # - name: load image from tarball
+      # # # #command: sudo docker load -i custom_nginx
+      # docker_image:
+      #   name: custom_nginx
+      #   # tag: latest
+      #   load_path: /home/admin/custom_nginx.tar
+      #   state: present
+      #   source: load
+    - name: start build image
+      # # # #command: sudo docker build -f ./dockerfile_build . -t custom_nginx
+      become: true
+      become_method: sudo
+      docker_image:
+        name: custom_nginx
+        source: build
+        build:
+          path: /home/admin
+        state: present
+    - name: Run container
+      docker_container:
+        name: custom_nginx
+        image: custom_nginx
+        ports:
+          - "80:80"
+        volumes:
+          - /home/admin/html:/usr/share/nginx/html
+        state: started
